@@ -50,22 +50,46 @@ def get_weatherData(request, district):
         # Parse daily weather data from the arrays
         daily_data = historical_data['daily']
         weather_history = []
+        alerts = []
+
+        # Defining weather threshold
+
+        high_temp_threshold = 30
+        low_temp_threshold = 10
+
         
-        for i in range(len(daily_data['time'])):
+        for i in range(len(daily_data["time"])):
+
+            max_temp = daily_data["temperature_2m_max"][i]
+            min_temp = daily_data["temperature_2m_min"][i]
+
+            
+            if max_temp > high_temp_threshold:
+                alerts.append(f"On {daily_data['time'][i]}, it is expected to be hot ({max_temp})°C. Remember to drink more water")
+            if min_temp < low_temp_threshold:
+            
+                alerts.append(f"On {daily_data['time'][i]}, it is expected to be cold ({min_temp})°C. Stay warm and dress in layers")
+            
+            
             weather_history.append({
-                'date': daily_data['time'][i],  # Get the date
-                'temperature_max': daily_data['temperature_2m_max'][i],
-                'temperature_min': daily_data['temperature_2m_min'][i],
-                
-                
-                
-            })
+                "date": daily_data["time"][i],  
+                "temperature_max": max_temp,
+                "temperature_min": min_temp
+                 })
+
+        # add alert to the current temperature
+        current_temp = current_weather_data["current_weather"]["temperature"]
+
+        if current_temp > high_temp_threshold:
+            alerts.append(f"Currently it is hot ({current_temp})°C. Drink plenty water")
+        if current_temp < low_temp_threshold:
+            alerts.append(f"Currently it is cold ({current_temp})°C. Stay indoor if Possible")
 
         # preparing historical data frame into pandas
         df = pd.DataFrame(weather_history)
          # converting dates into formatt which machine learning can understand
 
-        df['date'] = pd.to_datetime(df['date'])
+        df["date"] = pd.to_datetime(df["date"])
         df['day_of_year'] = df['date'].dt.dayofyear
 
         # Selecting features for (X) and (Y) for max and min temperature prediction
@@ -76,7 +100,7 @@ def get_weatherData(request, district):
         model_max = LinearRegression()
         model_min = LinearRegression()
 
-        # trainin the model 
+        # training the model 
         model_max.fit(X, y_max)
         model_min.fit(X, y_min)
 
@@ -92,8 +116,8 @@ def get_weatherData(request, district):
         for i in range(len(future_dates)):
             future_weather.append({
                 'date': future_dates['date'].iloc[i].strftime('%Y-%m-%d'),
-                'predicted_temperature_max': predicted_max_temps[i],
-                'predicted_temperature_min': predicted_min_temps[i]
+                'predicted_temperature_max': float(predicted_max_temps[i]),
+                'predicted_temperature_min': float(predicted_min_temps[i])
 
             })
             
@@ -106,7 +130,8 @@ def get_weatherData(request, district):
             'elevation': current_weather_data.get('elevation', 0),
             'historical': weather_history, 
             'current_weather': current_weather_data['current_weather'],
-            'predicted_weather': future_weather
+            'predicted_weather': future_weather,
+            'alerts': alerts
 
 
         }
@@ -116,8 +141,10 @@ def get_weatherData(request, district):
         # Serialize the data
         serializer = WeatherAPISerializer(data=weather_data)
         if serializer.is_valid():
+            
             return Response(serializer.data)
         else:
+            
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     except requests.exceptions.RequestException as e:
