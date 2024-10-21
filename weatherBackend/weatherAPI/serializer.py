@@ -36,7 +36,7 @@ class WeatherAPISerializer(serializers.Serializer):
         alerts = []
 
         hot_threshold = 30
-        cold_threshold = 15
+        cold_threshold = 10
 
         for forecast in predicted_weather:
             date = forecast.get('date')
